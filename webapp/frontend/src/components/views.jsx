@@ -3,14 +3,18 @@ import Plot from "./Plot.jsx";
 
 const PHASES = ["data_gen", "calibration", "eval_execution", "cost_optimization", "security_scan", "dashboard_sync", "github_deploy"];
 
-/** 🏠 Landing: status, repo badge, SECURITY summary, quick links. */
+/** 🏠 Landing: status, README preview, repo badge, SECURITY summary, quick links. */
 export function Landing({ live }) {
   const [status, setStatus] = useState({});
+  const [readme, setReadme] = useState("");
   useEffect(() => { fetch("/api/status").then((r) => r.json()).then(setStatus); }, [live?.ts]);
+  useEffect(() => { fetch("/api/docs/README.md").then((r) => r.json()).then((d) => setReadme(d.markdown || "")).catch(() => {}); }, []);
   return (<section>
     <h2>System Status</h2>
     <p>{status.running ? "🟢 Jev autopilot RUNNING" : "⚪ Idle"} — phase: {status.phase || "n/a"}</p>
     {status.repo_url && <a href={status.repo_url}><img alt="repo" src={`https://img.shields.io/badge/repo-jev--autonomous--eval--harness-blue`} /></a>}
+    <h3>README.md</h3>
+    <pre data-testid="landing-readme" style={{ whiteSpace: "pre-wrap", maxHeight: 400, overflow: "auto", background: "#1b1b1b", padding: 12 }}>{readme}</pre>
     <h3>SECURITY.md summary</h3><pre style={{ whiteSpace: "pre-wrap" }}>{status.security_summary}</pre>
     <h3>Guide PDFs</h3><ul><li><a href="/docs/setup_guide.pdf">setup_guide.pdf</a></li><li><a href="/docs/install_guide.pdf">install_guide.pdf</a></li></ul>
   </section>);
