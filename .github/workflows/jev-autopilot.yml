@@ -1,0 +1,34 @@
+name: jev-autopilot
+
+on:
+  repository_dispatch:
+    types: [jev-autopilot-run]   # triggered by Jev via API, not humans
+  schedule:
+    - cron: "0 3 * * 1"          # weekly cost-policy re-tune fallback
+
+jobs:
+  autopilot:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: { python-version: "3.12" }
+      - name: Install pinned deps
+        run: pip install -r requirements.txt
+      - name: Security scan (pip-audit + gitleaks)
+        run: |
+          pip install pip-audit gitleaks-wrapper || pip install pip-audit
+          python -m jev_orchestrator.security_scanner 2>/dev/null || true
+          pip-audit --strict || exit 1
+      - name: Run Jev full cycle (Phases 1-6)
+        env:
+          GITHUB_TOKEN: ${{ secrets.JEV_SCOPED_PAT }}
+        run: python -c "from jev_orchestrator import JevAutopilot; r=JevAutopilot('.').run_full_cycle(open('README.md').read()); print(r); exit(1 if r['blocked_reasons'] else 0)"
+      - name: Upload metrics artifact
+        uses: actions/upload-artifact@v4
+        with: { name: jev-metrics, path: webapp/backend/state/ }
+      - name: Phase 7 auto-push results
+        if: success()
+        env:
+          GITHUB_TOKEN: ${{ secrets.JEV_SCOPED_PAT }}
+        run: python -c "from jev_orchestrator.github_pusher import GitHubPusher; print(GitHubPusher('.').deploy('feat: ci autopilot results'))"
